@@ -1,1 +1,2 @@
-# Capstone
+# MA Capstone
+The topic of this project is to use social media data as early warning signals in risk management. We are motivated by a recent incident that Snapchat lost $1.3 billion after celebrity Kylie Jenner's tweet. We are interested to find out that whether social media data sentiment analysis can be used to predict stock trends and if mentions of specific companies will affect stock values. The data we extracted are tweets directed to the company (e.g. United Airlines)'s Twitter page and intra-day stock trade prices. 
