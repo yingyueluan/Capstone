@@ -1,0 +1,60 @@
+---
+title: "AMZNDaily"
+output:
+  html_document:
+    df_print: paged
+---
+```{r, warning=FALSE, message=FALSE}
+library(data.table)
+library(readr)
+library(stringr)
+library(forecast)
+library(xts)
+library(ggplot2)
+library(zoo)
+library(TSA)
+library(astsa)
+library(highfrequency)
+library(lubridate)
+library(tseries)
+library(quantmod)
+library(magrittr)
+```
+
+Compare AMZN with market
+```{r}
+start <- as.Date("2018-01-01")
+end <- as.Date("2018-04-25")
+getSymbols(c("AMZN", "^IXIC", "^GSPC", "^NYA"), src = "yahoo", from = start, to = end)
+
+plot(AMZN[, "AMZN.Close"], main = "AMZN")
+candleChart(AMZN, up.col = "black", dn.col = "red", theme = "white")
+```
+```{r}
+AMZNMarket <- as.xts(data.frame(AMZN = AMZN[, "AMZN.Close"], 
+                                Nasdaq = IXIC[, "IXIC.Close"],
+                                SP = GSPC[, "GSPC.Close"]))
+point = which(time(AMZNMarket) == "2018-04-02 GMT")
+AMZNMarket_return = apply(AMZNMarket, 1, function(x) {x / AMZNMarket[1,]}) %>% t %>% as.xts
+plot(as.zoo(AMZNMarket_return), screens = 1, lty = 1:3, xlab = "Date", ylab = "Return")
+abline(v=index(as.zoo(AMZNMarket_return))[point], col="blue") # "2018-04-02 GMT"
+legend("left", c("AMZN", "Nasdaq", "S&P"), lty = 1:3, cex = 0.5)
+
+AMZNMarket_change = AMZNMarket %>% log %>% diff
+plot(as.zoo(AMZNMarket_change), screens = 1, lty = 1:3, xlab = "Date", ylab = "Log Diff")
+abline(v=index(as.zoo(AMZNMarket_return))[point], col="blue") # "2018-04-02 GMT"
+legend("left", c("AMZN", "Nasdaq", "S&P"), lty = 1:3, cex = 0.5)
+
+AMZNMarket_rollVar = rollapply(AMZNMarket, by.column = TRUE, FUN = sd, fill = NA, width = 3)
+plot(as.zoo(AMZNMarket_rollVar), screens = 1, lty = 1:3, xlab = "Date", ylab = "Rolling SD")
+abline(v=index(as.zoo(AMZNMarket_return))[point], col="blue") # "2018-04-02 GMT"
+legend("left", c("AMZN", "Nasdaq", "S&P"), lty = 1:3, cex = 0.5)
+```
+```{r}
+library(psych)
+describe(AMZN[, "AMZN.Close"])
+```
+
+
+
+

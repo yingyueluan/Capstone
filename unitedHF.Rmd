@@ -1,0 +1,120 @@
+---
+title: "UALHF"
+output:
+  html_document:
+    df_print: paged
+---
+```{r, warning=FALSE, message=FALSE}
+library(data.table)
+library(readr)
+library(stringr)
+library(forecast)
+library(xts)
+library(ggplot2)
+library(zoo)
+library(TSA)
+library(astsa)
+library(highfrequency)
+library(lubridate)
+library(tseries)
+library(dplyr)
+library(e1071)
+library(caret)
+library(rugarch)
+```
+
+```{r, warning=FALSE, message=FALSE}
+UALTrade = read_csv("UAL_trades.csv")
+```
+
+aggregate by minute fill in 
+```{r}
+trade2 = UALTrade
+trade2 = transform(trade2, DATE = as.Date(as.character(DATE), "%Y%m%d"))
+trade2$datetime = paste(trade2$DATE, trade2$TIME_M)
+trade2$datetime = as.POSIXct(trade2$datetime, format = "%Y-%m-%d %H:%M:%S")
+trade2Minute = aggregate(trade2$PRICE, by=list(time=trade2$datetime), FUN=mean)
+trade2minute_xts = xts(trade2Minute[,"x"],trade2Minute[,"time"])
+colnames(trade2minute_xts) = 'PRICE'
+trade2minute_xts = aggregatets(trade2minute_xts$PRICE,on="minutes",k=1)
+plot.xts(trade2minute_xts)
+```
+
+```{r}
+adf.test(trade2minute_xts, alternative = "stationary")
+```
+
+```{r}
+d2 = ndiffs(trade2minute_xts)
+trade2Diff <- diff(trade2minute_xts, differences = d2)
+trade2Diff[1] = trade2Diff[2]
+adf.test(trade2Diff, alternative = "stationary")
+```
+
+```{r}
+event = xts("intervention", as.POSIXct("2018-03-13 13:22:00"))
+plot.xts(trade2Diff, type = "p", main = "United Trade Diff")
+addEventLines(event, srt=90, pos=2, col = "red")
+```
+
+```{r}
+# load("allUALTweets.RData")
+# UALTweet = allUALTweets
+# scoreGrouped = aggregate(UALTweet$sentimentrScore,by=list(time=UALTweet$created), FUN=mean)
+# merged = inner_join(x = scoreGrouped, y = trade2Minute , by = "time")
+# # merged$x.y = scale(merged$x.y)
+# 
+# mergedIndex = which(merged$time == "2018-03-13 13:22:00")
+# mergedPre = merged[1:mergedIndex,]
+# mergedPost = merged[1557:nrow(merged),]
+```
+
+LM
+```{r}
+# modlm = lm(x.y~x.x, data = mergedPre)
+# summary(modlm)
+# modPred = predict(modlm, newdata = data.frame(x.x = mergedPost$x.x))
+```
+SVM
+```{r}
+# modSVM = svm(x.y~x.x, data = mergedPre)
+# modPredSVM = predict(modSVM, newdata = data.frame(x.x = mergedPost$x.x))
+```
+
+Variance
+```{r}
+trade2minute_rollVar = rollapply(trade2minute_xts, by.column = TRUE, FUN = sd, fill = NA, width = 7)
+plot.xts(trade2minute_rollVar)
+```
+```{r}
+UALGarch = rbind(
+  trade2minute_xts[which(index(trade2minute_xts) == "2018-02-01 09:30:00"):which(index(trade2minute_xts) == "2018-03-16 16:00:00")])
+
+UALgar1 = ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1,1)), mean.model = list(armaOrder = c(0,0)), distribution.model = "std")
+UALgarch1 = ugarchfit(spec = UALgar1, data = UALGarch)
+coef(UALgarch1)
+# plot(sqrt(252) * UALgarch1@fit$sigma, type='l')
+event = xts("intervention", as.POSIXct("2018-03-13 13:22:00"))
+plot(sigma(UALgarch1) * 100 * sqrt(252), type='l')
+addEventLines(event, srt=90, pos=2, col = "red")
+
+UALGarch[which.max(UALgarch1@fit$sigma)]
+```
+
+
+```{r}
+UALgjrgar1 = ugarchspec(variance.model=list(model="gjrGARCH", garchOrder=c(1,1)), mean.model=list(armaOrder=c(1,1), include.mean=TRUE), distribution.model="std")
+UALgirGarch1 <- ugarchfit(spec = UALgjrgar1, data = UALGarch)
+plot(sigma(UALgirGarch1) * 100 * sqrt(252), type='l')
+addEventLines(event, srt=90, pos=2, col = "red")
+UALGarch[which.max(UALgirGarch1@fit$sigma)]
+```
+
+Descriptive
+```{r, warning=FALSE, message=FALSE}
+library(psych)
+describe(trade2Minute$x)
+```
+
+
+
